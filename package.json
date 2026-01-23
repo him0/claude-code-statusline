@@ -1,0 +1,23 @@
+{
+  "name": "@him0/claude-code-statusline",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/him0/claude-code-statusline#readme",
+  "bugs": {
+    "url": "https://github.com/him0/claude-code-statusline/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/him0/claude-code-statusline.git"
+  },
+  "license": "ISC",
+  "author": "him0",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "claude-code-statusline": "./index.js"
+  }
+}
