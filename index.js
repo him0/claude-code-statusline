@@ -3,6 +3,22 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+// Check if running directly (not from Claude Code)
+if (process.stdin.isTTY) {
+  console.log("claude-code-statusline");
+  console.log("");
+  console.log("This tool is designed to be used with Claude Code's statusLine feature.");
+  console.log("");
+  console.log("To enable, add the following to ~/.claude/settings.json:");
+  console.log("");
+  console.log('  "statusLine": {');
+  console.log('    "type": "command",');
+  console.log('    "command": "npx him0/claude-code-statusline"');
+  console.log("  }");
+  console.log("");
+  process.exit(0);
+}
+
 // Read JSON input from stdin
 let input = "";
 process.stdin.setEncoding("utf8");
