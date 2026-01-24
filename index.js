@@ -208,7 +208,8 @@ function generateStatusLine(data) {
       const cleanBranch = branch.replace(/\*$/, "");
       const prInfo = getPrInfo(dirFull, cleanBranch);
       if (prInfo) {
-        gitInfo = `${branch} [PR#${prInfo.number}]`;
+        const prLink = createClickableLink(`[PR#${prInfo.number}]`, prInfo.url);
+        gitInfo = `${branch} ${prLink}`;
       }
     }
   } catch {
