@@ -3,6 +3,97 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+// Cache configuration
+const CACHE_FILE = path.join(
+  process.env.HOME,
+  ".claude",
+  "cache",
+  "statusline-pr-cache.json",
+);
+const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCacheTtl() {
+  const envTtl = process.env.STATUSLINE_PR_CACHE_TTL_MS;
+  return envTtl ? parseInt(envTtl, 10) : DEFAULT_CACHE_TTL_MS;
+}
+
+function loadCache() {
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      return JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+    }
+  } catch {
+    // Cache corrupted, return empty
+  }
+  return {};
+}
+
+function saveCache(cache) {
+  try {
+    const dir = path.dirname(CACHE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
+  } catch {
+    // Write failure, ignore
+  }
+}
+
+function getFromCache(repoPath, branch) {
+  const cache = loadCache();
+  const entry = cache[repoPath];
+  if (!entry || entry.branch !== branch) {
+    return null;
+  }
+  const ttl = getCacheTtl();
+  if (Date.now() - entry.fetchedAt > ttl) {
+    return null;
+  }
+  return entry;
+}
+
+function saveToCache(repoPath, branch, prUrl, prNumber) {
+  const cache = loadCache();
+  cache[repoPath] = {
+    branch,
+    prUrl,
+    prNumber,
+    fetchedAt: Date.now(),
+  };
+  saveCache(cache);
+}
+
+function getPrInfo(repoPath, branch) {
+  // Try cache first
+  const cached = getFromCache(repoPath, branch);
+  if (cached) {
+    return cached.prUrl ? { url: cached.prUrl, number: cached.prNumber } : null;
+  }
+
+  // Fetch from gh CLI
+  try {
+    const result = execSync("gh pr view --json url,number", {
+      cwd: repoPath,
+      encoding: "utf8",
+      stdio: "pipe",
+      timeout: 5000,
+    });
+    const prData = JSON.parse(result);
+    saveToCache(repoPath, branch, prData.url, prData.number);
+    return { url: prData.url, number: prData.number };
+  } catch {
+    // No PR or gh CLI error
+    saveToCache(repoPath, branch, null, null);
+    return null;
+  }
+}
+
+function createClickableLink(text, url) {
+  // iTerm2 OSC 8 escape sequence
+  return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
+}
+
 // Check if running directly (not from Claude Code)
 if (process.stdin.isTTY) {
   console.log("claude-code-statusline");
@@ -86,12 +177,13 @@ function generateStatusLine(data) {
   // Git
   let gitInfo = "";
   try {
-    execSync("git rev-parse --git-dir", { stdio: "pipe" });
+    execSync("git rev-parse --git-dir", { stdio: "pipe", cwd: dirFull });
     let branch;
     try {
       branch = execSync("git rev-parse --abbrev-ref HEAD", {
         encoding: "utf8",
         stdio: "pipe",
+        cwd: dirFull,
       }).trim();
     } catch {
       branch = "detached";
@@ -100,12 +192,22 @@ function generateStatusLine(data) {
     // Check for dirty (including untracked)
     const status = execSync(
       "git --no-optional-locks status --porcelain -unormal --ignore-submodules=dirty",
-      { encoding: "utf8", stdio: "pipe" },
+      { encoding: "utf8", stdio: "pipe", cwd: dirFull },
     );
     if (status.trim()) {
       branch += "*";
     }
     gitInfo = branch;
+
+    // Add PR link if available
+    if (branch !== "detached") {
+      const cleanBranch = branch.replace(/\*$/, "");
+      const prInfo = getPrInfo(dirFull, cleanBranch);
+      if (prInfo) {
+        const prLink = createClickableLink("[PR]", prInfo.url);
+        gitInfo = `${branch} ${prLink}`;
+      }
+    }
   } catch {
     // Not a git repo
   }
