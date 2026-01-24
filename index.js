@@ -82,14 +82,12 @@ function getPrInfo(repoPath, branch) {
     const prData = JSON.parse(result);
     // Only show PR link for open PRs
     if (prData.state !== "OPEN") {
-      saveToCache(repoPath, branch, null, null);
       return null;
     }
     saveToCache(repoPath, branch, prData.url, prData.number);
     return { url: prData.url, number: prData.number };
   } catch {
-    // No PR or gh CLI error
-    saveToCache(repoPath, branch, null, null);
+    // No PR or gh CLI error - don't cache so we can detect new PRs quickly
     return null;
   }
 }
