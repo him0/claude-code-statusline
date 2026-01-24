@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+/**
+ * claude-code-statusline
+ * A status line generator for Claude Code CLI
+ */
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
