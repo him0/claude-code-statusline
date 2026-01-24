@@ -101,16 +101,17 @@ function createClickableLink(text, url) {
 
 // Check if running directly (not from Claude Code)
 if (process.stdin.isTTY) {
-  console.log("claude-code-statusline");
+  const pkg = require("./package.json");
+  console.log(`claude-code-statusline v${pkg.version}`);
   console.log("");
   console.log("This tool is designed to be used with Claude Code's statusLine feature.");
   console.log("");
   console.log("To enable, add the following to ~/.claude/settings.json:");
   console.log("");
-  console.log('  "statusLine": {');
-  console.log('    "type": "command",');
-  console.log('    "command": "npx him0/claude-code-statusline"');
-  console.log("  }");
+  console.log('"statusLine": {');
+  console.log('  "type": "command",');
+  console.log('  "command": "npx him0/claude-code-statusline"');
+  console.log("}");
   console.log("");
   process.exit(0);
 }
