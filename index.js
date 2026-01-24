@@ -203,13 +203,12 @@ function generateStatusLine(data) {
     }
     gitInfo = branch;
 
-    // Add PR link if available
+    // Add PR number if available
     if (branch !== "detached") {
       const cleanBranch = branch.replace(/\*$/, "");
       const prInfo = getPrInfo(dirFull, cleanBranch);
       if (prInfo) {
-        const prLink = createClickableLink("[PR]", prInfo.url);
-        gitInfo = `${branch} ${prLink}`;
+        gitInfo = `${branch} [PR#${prInfo.number}]`;
       }
     }
   } catch {
