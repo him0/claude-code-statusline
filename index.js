@@ -92,11 +92,6 @@ function getPrInfo(repoPath, branch) {
   }
 }
 
-function createClickableLink(text, url) {
-  // iTerm2 OSC 8 escape sequence
-  return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
-}
-
 // Check if running directly (not from Claude Code)
 if (process.stdin.isTTY) {
   const pkg = require("./package.json");
@@ -208,8 +203,7 @@ function generateStatusLine(data) {
       const cleanBranch = branch.replace(/\*$/, "");
       const prInfo = getPrInfo(dirFull, cleanBranch);
       if (prInfo) {
-        const prLink = createClickableLink(`[PR#${prInfo.number}]`, prInfo.url);
-        gitInfo = `${branch} ${prLink}`;
+        gitInfo = `${branch} [PR#${prInfo.number}]`;
       }
     }
   } catch {
