@@ -223,7 +223,7 @@ function generateStatusLine(data) {
     const percentage = data.context_window.used_percentage;
     const totalInput = data.context_window.total_input_tokens ?? 0;
     const windowSize = data.context_window.context_window_size ?? 200000;
-    context = `Context: ${formatNumber(totalInput)}/${formatNumber(
+    context = `${formatNumber(totalInput)}/${formatNumber(
       windowSize,
     )} (${percentage}%)`;
   }
