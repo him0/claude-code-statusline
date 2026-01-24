@@ -73,13 +73,18 @@ function getPrInfo(repoPath, branch) {
 
   // Fetch from gh CLI
   try {
-    const result = execSync("gh pr view --json url,number", {
+    const result = execSync("gh pr view --json url,number,state", {
       cwd: repoPath,
       encoding: "utf8",
       stdio: "pipe",
       timeout: 5000,
     });
     const prData = JSON.parse(result);
+    // Only show PR link for open PRs
+    if (prData.state !== "OPEN") {
+      saveToCache(repoPath, branch, null, null);
+      return null;
+    }
     saveToCache(repoPath, branch, prData.url, prData.number);
     return { url: prData.url, number: prData.number };
   } catch {
