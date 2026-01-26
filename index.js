@@ -97,8 +97,8 @@ function getPrInfo(repoPath, branch) {
 }
 
 function createClickableLink(text, url) {
-  // iTerm2 OSC 8 escape sequence
-  return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
+  // OSC 8 hyperlink escape sequence (using BEL terminator for better compatibility)
+  return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
 }
 
 // Check if running directly (not from Claude Code)
