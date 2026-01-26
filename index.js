@@ -212,21 +212,26 @@ function generateStatusLine(data) {
       const cleanBranch = branch.replace(/\*$/, "");
       const prInfo = getPrInfo(dirFull, cleanBranch);
       if (prInfo) {
-        const prLink = createClickableLink(`[PR#${prInfo.number}]`, prInfo.url);
-        gitInfo = `${branch} ${prLink}`;
+        const prLink = createClickableLink(`PR#${prInfo.number}`, prInfo.url);
+        gitInfo = `${branch} [${prLink}]`;
       }
     }
   } catch {
     // Not a git repo
   }
 
-  // Context（used_percentage を直接使用）
+  // Context（current_usage の合計を分子として使用）
   let context = "";
   if (data.context_window && data.context_window.used_percentage != null) {
     const percentage = data.context_window.used_percentage;
-    const totalInput = data.context_window.total_input_tokens ?? 0;
+    const cu = data.context_window.current_usage || {};
+    const currentUsageTotal =
+      (cu.input_tokens ?? 0) +
+      (cu.output_tokens ?? 0) +
+      (cu.cache_creation_input_tokens ?? 0) +
+      (cu.cache_read_input_tokens ?? 0);
     const windowSize = data.context_window.context_window_size ?? 200000;
-    context = `${formatNumber(totalInput)}/${formatNumber(
+    context = `${formatNumber(currentUsageTotal)}/${formatNumber(
       windowSize,
     )} (${percentage}%)`;
   }
