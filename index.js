@@ -57,12 +57,13 @@ function getFromCache(repoPath, branch) {
   return entry;
 }
 
-function saveToCache(repoPath, branch, prUrl, prNumber) {
+function saveToCache(repoPath, branch, prUrl, prNumber, isDraft) {
   const cache = loadCache();
   cache[repoPath] = {
     branch,
     prUrl,
     prNumber,
+    isDraft,
     fetchedAt: Date.now(),
   };
   saveCache(cache);
@@ -72,12 +73,12 @@ function getPrInfo(repoPath, branch) {
   // Try cache first
   const cached = getFromCache(repoPath, branch);
   if (cached) {
-    return cached.prUrl ? { url: cached.prUrl, number: cached.prNumber } : null;
+    return cached.prUrl ? { url: cached.prUrl, number: cached.prNumber, isDraft: cached.isDraft } : null;
   }
 
   // Fetch from gh CLI
   try {
-    const result = execSync("gh pr view --json url,number,state", {
+    const result = execSync("gh pr view --json url,number,state,isDraft", {
       cwd: repoPath,
       encoding: "utf8",
       stdio: "pipe",
@@ -88,8 +89,8 @@ function getPrInfo(repoPath, branch) {
     if (prData.state !== "OPEN") {
       return null;
     }
-    saveToCache(repoPath, branch, prData.url, prData.number);
-    return { url: prData.url, number: prData.number };
+    saveToCache(repoPath, branch, prData.url, prData.number, prData.isDraft);
+    return { url: prData.url, number: prData.number, isDraft: prData.isDraft };
   } catch {
     // No PR or gh CLI error - don't cache so we can detect new PRs quickly
     return null;
@@ -212,7 +213,8 @@ function generateStatusLine(data) {
       const cleanBranch = branch.replace(/\*$/, "");
       const prInfo = getPrInfo(dirFull, cleanBranch);
       if (prInfo) {
-        const prLink = createClickableLink(`PR#${prInfo.number}`, prInfo.url);
+        const prLabel = prInfo.isDraft ? `Draft PR#${prInfo.number}` : `PR#${prInfo.number}`;
+        const prLink = createClickableLink(prLabel, prInfo.url);
         gitInfo = `${branch} [${prLink}]`;
       }
     }

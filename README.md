@@ -21,7 +21,7 @@ Custom statusLine command for Claude Code.
 |------|-------------|
 | `~/src/my-project` | Working directory |
 | `main*` | Git branch (`*` = uncommitted changes) |
-| `[PR#42]` | Clickable link to open PR (if exists) |
+| `[PR#42]` or `[Draft PR#42]` | Clickable link to open PR (shows Draft prefix for draft PRs) |
 | `Opus 4.5` | Model name |
 | `03:45` | Session duration (mm:ss) |
 | `↑12.3k ↓5.6k (17.9k)` | Tokens: input ↑ / output ↓ / (total) |
