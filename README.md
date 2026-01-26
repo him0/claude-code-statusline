@@ -53,16 +53,6 @@ Or with Bun:
 }
 ```
 
-## Configuration
-
-### PR Cache TTL
-
-PR information is cached for 5 minutes by default. To change:
-
-```bash
-export STATUSLINE_PR_CACHE_TTL_MS=300000  # 5 minutes in milliseconds
-```
-
 ## Requirements
 
 - Node.js 18+
