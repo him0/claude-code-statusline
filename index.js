@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+/**
+ * claude-code-statusline
+ * A status line generator for Claude Code CLI
+ */
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
@@ -90,6 +94,11 @@ function getPrInfo(repoPath, branch) {
     // No PR or gh CLI error - don't cache so we can detect new PRs quickly
     return null;
   }
+}
+
+function createClickableLink(text, url) {
+  // OSC 8 hyperlink escape sequence (using BEL terminator for better compatibility)
+  return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
 }
 
 // Check if running directly (not from Claude Code)
@@ -203,7 +212,8 @@ function generateStatusLine(data) {
       const cleanBranch = branch.replace(/\*$/, "");
       const prInfo = getPrInfo(dirFull, cleanBranch);
       if (prInfo) {
-        gitInfo = `${branch} [PR#${prInfo.number}]`;
+        const prLink = createClickableLink(`PR#${prInfo.number}`, prInfo.url);
+        gitInfo = `${branch} [${prLink}]`;
       }
     }
   } catch {
