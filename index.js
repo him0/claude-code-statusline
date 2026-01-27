@@ -57,12 +57,13 @@ function getFromCache(repoPath, branch) {
   return entry;
 }
 
-function saveToCache(repoPath, branch, prUrl, prNumber) {
+function saveToCache(repoPath, branch, prUrl, prNumber, prTitle) {
   const cache = loadCache();
   cache[repoPath] = {
     branch,
     prUrl,
     prNumber,
+    prTitle,
     fetchedAt: Date.now(),
   };
   saveCache(cache);
@@ -72,12 +73,14 @@ function getPrInfo(repoPath, branch) {
   // Try cache first
   const cached = getFromCache(repoPath, branch);
   if (cached) {
-    return cached.prUrl ? { url: cached.prUrl, number: cached.prNumber } : null;
+    return cached.prUrl
+      ? { url: cached.prUrl, number: cached.prNumber, title: cached.prTitle }
+      : null;
   }
 
   // Fetch from gh CLI
   try {
-    const result = execSync("gh pr view --json url,number,state", {
+    const result = execSync("gh pr view --json url,number,state,title", {
       cwd: repoPath,
       encoding: "utf8",
       stdio: "pipe",
@@ -88,8 +91,8 @@ function getPrInfo(repoPath, branch) {
     if (prData.state !== "OPEN") {
       return null;
     }
-    saveToCache(repoPath, branch, prData.url, prData.number);
-    return { url: prData.url, number: prData.number };
+    saveToCache(repoPath, branch, prData.url, prData.number, prData.title);
+    return { url: prData.url, number: prData.number, title: prData.title };
   } catch {
     // No PR or gh CLI error - don't cache so we can detect new PRs quickly
     return null;
@@ -150,37 +153,8 @@ function generateStatusLine(data) {
   // 基本情報抽出
   const model = (data.model?.display_name || "Unknown").replace(/^Claude /, "");
   const dirFull = data.workspace?.current_dir || data.cwd || "Unknown";
-  const dir = dirFull.replace(home, "~");
+  const dir = path.basename(dirFull);
 
-  // 時間（APIから）
-  const durationMs = data.cost?.total_duration_ms ?? 0;
-  const minutes = Math.floor(durationMs / 60000);
-  const seconds = Math.floor((durationMs % 60000) / 1000);
-  const duration = `${String(minutes).padStart(2, "0")}:${String(
-    seconds,
-  ).padStart(2, "0")}`;
-
-  // トークン数（トランスクリプトから）
-  let tokens = "--";
-  const transcript = data.transcript_path;
-  if (transcript && fs.existsSync(transcript)) {
-    const content = fs.readFileSync(transcript, "utf8");
-    const inputMatches = content.match(/"input_tokens":(\d+)/g) || [];
-    const outputMatches = content.match(/"output_tokens":(\d+)/g) || [];
-
-    const inputTokens = inputMatches.reduce(
-      (sum, m) => sum + parseInt(m.match(/\d+/)[0], 10),
-      0,
-    );
-    const outputTokens = outputMatches.reduce(
-      (sum, m) => sum + parseInt(m.match(/\d+/)[0], 10),
-      0,
-    );
-    const totalTokens = inputTokens + outputTokens;
-    tokens = `↑${formatNumber(inputTokens)} ↓${formatNumber(
-      outputTokens,
-    )} (${formatNumber(totalTokens)})`;
-  }
 
   // Git
   let gitInfo = "";
@@ -207,13 +181,14 @@ function generateStatusLine(data) {
     }
     gitInfo = branch;
 
-    // Add PR number if available
+    // Add PR link if available
     if (branch !== "detached") {
       const cleanBranch = branch.replace(/\*$/, "");
       const prInfo = getPrInfo(dirFull, cleanBranch);
       if (prInfo) {
-        const prLink = createClickableLink(`PR#${prInfo.number}`, prInfo.url);
-        gitInfo = `${branch} [${prLink}]`;
+        gitInfo = `${createClickableLink(prInfo.url, prInfo.url)} | ${prInfo.title}`;
+      } else {
+        gitInfo = branch;
       }
     }
   } catch {
@@ -237,8 +212,6 @@ function generateStatusLine(data) {
   }
 
   // 出力
-  const parts = [dir, gitInfo, model, duration, tokens, context].filter(
-    Boolean,
-  );
+  const parts = [dir, gitInfo, model, context].filter(Boolean);
   return parts.join(" | ");
 }
