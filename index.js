@@ -96,6 +96,40 @@ function getPrInfo(repoPath, branch) {
   }
 }
 
+function getRepoInfo(repoPath) {
+  try {
+    // Get remote URL
+    const remoteUrl = execSync("git remote get-url origin", {
+      cwd: repoPath,
+      encoding: "utf8",
+      stdio: "pipe",
+      timeout: 3000,
+    }).trim();
+
+    // Convert SSH or HTTPS URL to web URL
+    let webUrl = remoteUrl;
+
+    // SSH format: git@github.com:owner/repo.git
+    const sshMatch = remoteUrl.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+    if (sshMatch) {
+      webUrl = `https://${sshMatch[1]}/${sshMatch[2]}`;
+    }
+
+    // HTTPS format: https://github.com/owner/repo.git
+    const httpsMatch = remoteUrl.match(/^https:\/\/([^/]+)\/(.+?)(?:\.git)?$/);
+    if (httpsMatch) {
+      webUrl = `https://${httpsMatch[1]}/${httpsMatch[2]}`;
+    }
+
+    // Extract repo name from URL
+    const repoName = webUrl.split("/").pop().replace(/\.git$/, "");
+
+    return { url: webUrl, name: repoName };
+  } catch {
+    return null;
+  }
+}
+
 function createClickableLink(text, url) {
   // OSC 8 hyperlink escape sequence (using BEL terminator for better compatibility)
   return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
@@ -184,8 +218,16 @@ function generateStatusLine(data) {
 
   // Git
   let gitInfo = "";
+  let repoLink = "";
   try {
     execSync("git rev-parse --git-dir", { stdio: "pipe", cwd: dirFull });
+
+    // Get repository info for clickable link
+    const repoInfo = getRepoInfo(dirFull);
+    if (repoInfo) {
+      repoLink = createClickableLink(repoInfo.name, repoInfo.url);
+    }
+
     let branch;
     try {
       branch = execSync("git rev-parse --abbrev-ref HEAD", {
@@ -237,7 +279,7 @@ function generateStatusLine(data) {
   }
 
   // 出力
-  const parts = [dir, gitInfo, model, duration, tokens, context].filter(
+  const parts = [repoLink || dir, gitInfo, model, duration, tokens, context].filter(
     Boolean,
   );
   return parts.join(" | ");
