@@ -182,7 +182,10 @@ function generateStatusLine(data) {
   );
 
   // 基本情報抽出
-  const model = (data.model?.display_name || "Unknown").replace(/^Claude /, "");
+  const model = (data.model?.display_name || "Unknown")
+    .replace(/^Claude /, "")
+    .replace(/(\D)\s+([\d])/, "$1$2")
+    .replace(/\s*context\b/, "");
   const dirFull = data.workspace?.current_dir || data.cwd || "Unknown";
   const dir = dirFull.replace(home, "~");
 

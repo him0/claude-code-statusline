@@ -14,7 +14,7 @@ Custom statusLine command for Claude Code.
 ## Output Sample
 
 ```
-~/src/my-project | main* [PR#42] | Opus 4.5 | 45.2k/200k (22%) | 03:45 | ↑12.3k ↓5.6k (17.9k)
+~/src/my-project | main* [PR#42] | Opus4.5 | 45.2k/200k (22%) | 03:45 | ↑12.3k ↓5.6k (17.9k)
 ```
 
 | Part | Description |
@@ -22,7 +22,7 @@ Custom statusLine command for Claude Code.
 | `~/src/my-project` | Working directory |
 | `main*` | Git branch (`*` = uncommitted changes) |
 | `[PR#42]` | Clickable link to open PR (if exists) |
-| `Opus 4.5` | Model name |
+| `Opus4.5` | Model name |
 | `45.2k/200k (22%)` | Context window usage |
 | `03:45` | Session duration (mm:ss) |
 | `↑12.3k ↓5.6k (17.9k)` | Tokens: input ↑ / output ↓ / (total) |
