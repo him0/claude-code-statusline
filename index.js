@@ -168,7 +168,8 @@ process.stdin.on("end", () => {
 
 function formatNumber(n) {
   if (n >= 1000) {
-    return (n / 1000).toFixed(1) + "k";
+    const k = n / 1000;
+    return (k % 1 === 0 ? String(k) : k.toFixed(1)) + "k";
   }
   return String(n);
 }
