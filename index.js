@@ -279,7 +279,7 @@ function generateStatusLine(data) {
   }
 
   // 出力
-  const parts = [repoLink || dir, gitInfo, model, duration, tokens, context].filter(
+  const parts = [repoLink || dir, gitInfo, model, context, duration, tokens].filter(
     Boolean,
   );
   return parts.join(" | ");
