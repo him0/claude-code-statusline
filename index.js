@@ -266,6 +266,18 @@ function generateStatusLine(data) {
     // Not a git repo
   }
 
+  // Worktree 情報
+  let worktreeInfo = "";
+  const wt = data.worktree;
+  if (wt?.name) {
+    worktreeInfo = `⎇ ${wt.name}`;
+    if (wt.original_branch) {
+      worktreeInfo += ` ← ${wt.original_branch}`;
+    }
+  } else if (data.workspace?.git_worktree) {
+    worktreeInfo = `⎇ ${data.workspace.git_worktree}`;
+  }
+
   // Context（current_usage の合計を分子として使用）
   let context = "";
   if (data.context_window && data.context_window.used_percentage != null) {
@@ -283,8 +295,14 @@ function generateStatusLine(data) {
   }
 
   // 出力
-  const parts = [repoLink || dir, gitInfo, model, context, duration, tokens].filter(
-    Boolean,
-  );
+  const parts = [
+    repoLink || dir,
+    gitInfo,
+    worktreeInfo,
+    model,
+    context,
+    duration,
+    tokens,
+  ].filter(Boolean);
   return parts.join(" | ");
 }
