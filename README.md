@@ -4,26 +4,27 @@ Custom statusLine command for Claude Code.
 
 ## Features
 
-- Working directory (`~` shortened)
-- Git branch with dirty indicator (`*`) + clickable PR link
+- Repository name with clickable remote link (falls back to working directory with `~` shortened)
+- Git branch with dirty indicator (`*`), worktree prefix (`(wt)`), and clickable PR link
 - Model name
+- Context window usage (used/total with percentage)
 - Session duration
 - Token usage (input ↑ / output ↓ / total)
-- Context window usage (used/total with percentage)
 
 ## Output Sample
 
 ```
-~/src/my-project | main* [PR#42] | Opus4.5 | 45.2k/200k (22%) | 03:45 | ↑12.3k ↓5.6k (17.9k)
+claude-code-statusline | (wt) feature-branch* [PR#42] | Opus4.7 (1M) | 29.0k/1000k (3%) | 03:45 | ↑12.3k ↓5.6k (17.9k)
 ```
 
 | Part | Description |
 |------|-------------|
-| `~/src/my-project` | Working directory |
-| `main*` | Git branch (`*` = uncommitted changes) |
+| `claude-code-statusline` | Repository name (clickable link to remote); falls back to `~/src/my-project` when not a git repo |
+| `(wt)` | Shown when running inside a git worktree |
+| `feature-branch*` | Git branch (`*` = uncommitted changes) |
 | `[PR#42]` | Clickable link to open PR (if exists) |
-| `Opus4.5` | Model name |
-| `45.2k/200k (22%)` | Context window usage |
+| `Opus4.7 (1M)` | Model name |
+| `29.0k/1000k (3%)` | Context window usage |
 | `03:45` | Session duration (mm:ss) |
 | `↑12.3k ↓5.6k (17.9k)` | Tokens: input ↑ / output ↓ / (total) |
 
