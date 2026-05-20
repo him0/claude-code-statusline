@@ -57,7 +57,7 @@ Or with Bun:
 ## Requirements
 
 - Node.js 18+
-- `gh` CLI (optional, for PR links)
+- `gh` CLI (optional, used to display clickable PR links)
 
 ## License
 
