@@ -142,6 +142,12 @@ process.stdin.on("end", () => {
   }
 });
 
+function formatDuration(ms) {
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function formatNumber(n) {
   if (n >= 1_000_000) {
     const m = n / 1_000_000;
@@ -172,13 +178,11 @@ function generateStatusLine(data) {
   const dirFull = data.workspace?.current_dir || data.cwd || "Unknown";
   const dir = dirFull.replace(home, "~");
 
-  // 時間（APIから）
-  const durationMs = data.cost?.total_duration_ms ?? 0;
-  const minutes = Math.floor(durationMs / 60000);
-  const seconds = Math.floor((durationMs % 60000) / 1000);
-  const duration = `${String(minutes).padStart(2, "0")}:${String(
-    seconds,
-  ).padStart(2, "0")}`;
+  // 時間（wall / API）
+  const duration = formatDuration(data.cost?.total_duration_ms ?? 0);
+  const apiDuration = `[api ${formatDuration(
+    data.cost?.total_api_duration_ms ?? 0,
+  )}]`;
 
   // トークン数（context_window から）
   let tokens = "--";
@@ -264,7 +268,7 @@ function generateStatusLine(data) {
   const groups = [
     [repoLink || dir, gitInfo],
     [model, context],
-    [duration, tokens, lines],
+    [duration, apiDuration, tokens, lines],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
   return groups.join(" | ");
 }
