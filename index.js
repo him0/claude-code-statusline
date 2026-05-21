@@ -180,6 +180,11 @@ function generateStatusLine(data) {
     tokens = `↑${formatNumber(inputTokens)} ↓${formatNumber(outputTokens)}`;
   }
 
+  // 行数の増減（cost から）
+  const linesAdded = data.cost?.total_lines_added ?? 0;
+  const linesRemoved = data.cost?.total_lines_removed ?? 0;
+  const lines = `+${linesAdded} -${linesRemoved}`;
+
   // Git
   let gitInfo = "";
   let repoLink = "";
@@ -251,7 +256,7 @@ function generateStatusLine(data) {
   const groups = [
     [repoLink || dir, gitInfo],
     [model, context],
-    [duration, tokens],
+    [duration, tokens, lines],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
   return groups.join(" | ");
 }
