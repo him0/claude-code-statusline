@@ -173,7 +173,7 @@ function generateStatusLine(data) {
     .replace(/^Claude /, "")
     .replace(/\s*\([^)]*\bcontext\b[^)]*\)/, "");
   if (data.effort?.level) {
-    model += ` (${EFFORT_SHORT[data.effort.level] || data.effort.level})`;
+    model += ` ${EFFORT_SHORT[data.effort.level] || data.effort.level}`;
   }
   const dirFull = data.workspace?.current_dir || data.cwd || "Unknown";
   const dir = dirFull.replace(home, "~");
