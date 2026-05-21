@@ -177,9 +177,7 @@ function generateStatusLine(data) {
   if (data.context_window) {
     const inputTokens = data.context_window.total_input_tokens ?? 0;
     const outputTokens = data.context_window.total_output_tokens ?? 0;
-    tokens = `↑${formatNumber(inputTokens)} ↓${formatNumber(
-      outputTokens,
-    )} (${formatNumber(inputTokens + outputTokens)})`;
+    tokens = `↑${formatNumber(inputTokens)} ↓${formatNumber(outputTokens)}`;
   }
 
   // Git
