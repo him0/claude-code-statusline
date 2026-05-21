@@ -16,6 +16,14 @@ const CACHE_FILE = path.join(
 );
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+const EFFORT_SHORT = {
+  low: "low",
+  medium: "med",
+  high: "hi",
+  xhigh: "xhi",
+  max: "max",
+};
+
 function getCacheTtl() {
   const envTtl = process.env.STATUSLINE_PR_CACHE_TTL_MS;
   return envTtl ? parseInt(envTtl, 10) : DEFAULT_CACHE_TTL_MS;
@@ -96,40 +104,6 @@ function getPrInfo(repoPath, branch) {
   }
 }
 
-function getRepoInfo(repoPath) {
-  try {
-    // Get remote URL
-    const remoteUrl = execSync("git remote get-url origin", {
-      cwd: repoPath,
-      encoding: "utf8",
-      stdio: "pipe",
-      timeout: 3000,
-    }).trim();
-
-    // Convert SSH or HTTPS URL to web URL
-    let webUrl = remoteUrl;
-
-    // SSH format: git@github.com:owner/repo.git
-    const sshMatch = remoteUrl.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
-    if (sshMatch) {
-      webUrl = `https://${sshMatch[1]}/${sshMatch[2]}`;
-    }
-
-    // HTTPS format: https://github.com/owner/repo.git
-    const httpsMatch = remoteUrl.match(/^https:\/\/([^/]+)\/(.+?)(?:\.git)?$/);
-    if (httpsMatch) {
-      webUrl = `https://${httpsMatch[1]}/${httpsMatch[2]}`;
-    }
-
-    // Extract repo name from URL
-    const repoName = webUrl.split("/").pop().replace(/\.git$/, "");
-
-    return { url: webUrl, name: repoName };
-  } catch {
-    return null;
-  }
-}
-
 function createClickableLink(text, url) {
   // OSC 8 hyperlink escape sequence (using BEL terminator for better compatibility)
   return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
@@ -140,7 +114,9 @@ if (process.stdin.isTTY) {
   const pkg = require("./package.json");
   console.log(`claude-code-statusline v${pkg.version}`);
   console.log("");
-  console.log("This tool is designed to be used with Claude Code's statusLine feature.");
+  console.log(
+    "This tool is designed to be used with Claude Code's statusLine feature.",
+  );
   console.log("");
   console.log("To enable, add the following to ~/.claude/settings.json:");
   console.log("");
@@ -166,7 +142,17 @@ process.stdin.on("end", () => {
   }
 });
 
+function formatDuration(ms) {
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function formatNumber(n) {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return (m % 1 === 0 ? String(m) : m.toFixed(1)) + "M";
+  }
   if (n >= 1000) {
     const k = n / 1000;
     return (k % 1 === 0 ? String(k) : k.toFixed(1)) + "k";
@@ -183,42 +169,35 @@ function generateStatusLine(data) {
   );
 
   // 基本情報抽出
-  const model = (data.model?.display_name || "Unknown")
+  let model = (data.model?.display_name || "Unknown")
     .replace(/^Claude /, "")
-    .replace(/(\D)\s+([\d])/, "$1$2")
-    .replace(/\s*context\b/, "");
+    .replace(/\s*\([^)]*\bcontext\b[^)]*\)/, "");
+  if (data.effort?.level) {
+    model += ` ${EFFORT_SHORT[data.effort.level] || data.effort.level}`;
+  }
   const dirFull = data.workspace?.current_dir || data.cwd || "Unknown";
   const dir = dirFull.replace(home, "~");
 
-  // 時間（APIから）
-  const durationMs = data.cost?.total_duration_ms ?? 0;
-  const minutes = Math.floor(durationMs / 60000);
-  const seconds = Math.floor((durationMs % 60000) / 1000);
-  const duration = `${String(minutes).padStart(2, "0")}:${String(
-    seconds,
-  ).padStart(2, "0")}`;
+  // 時間（api/wall = subset/total の比率順）
+  const duration = `${formatDuration(
+    data.cost?.total_api_duration_ms ?? 0,
+  )}/${formatDuration(data.cost?.total_duration_ms ?? 0)}`;
 
-  // トークン数（トランスクリプトから）
+  // トークン数（context_window から）
   let tokens = "--";
-  const transcript = data.transcript_path;
-  if (transcript && fs.existsSync(transcript)) {
-    const content = fs.readFileSync(transcript, "utf8");
-    const inputMatches = content.match(/"input_tokens":(\d+)/g) || [];
-    const outputMatches = content.match(/"output_tokens":(\d+)/g) || [];
-
-    const inputTokens = inputMatches.reduce(
-      (sum, m) => sum + parseInt(m.match(/\d+/)[0], 10),
-      0,
-    );
-    const outputTokens = outputMatches.reduce(
-      (sum, m) => sum + parseInt(m.match(/\d+/)[0], 10),
-      0,
-    );
-    const totalTokens = inputTokens + outputTokens;
-    tokens = `↑${formatNumber(inputTokens)} ↓${formatNumber(
-      outputTokens,
-    )} (${formatNumber(totalTokens)})`;
+  if (data.context_window) {
+    const inputTokens = data.context_window.total_input_tokens ?? 0;
+    const outputTokens = data.context_window.total_output_tokens ?? 0;
+    tokens = `[↑${formatNumber(inputTokens)} ↓${formatNumber(outputTokens)}]`;
   }
+
+  // 行数の増減（cost から）
+  const linesAdded = data.cost?.total_lines_added ?? 0;
+  const linesRemoved = data.cost?.total_lines_removed ?? 0;
+  const lines = `[+${linesAdded} -${linesRemoved}]`;
+
+  // 累計コスト（USD）
+  const cost = `[$${(data.cost?.total_cost_usd ?? 0).toFixed(2)}]`;
 
   // Git
   let gitInfo = "";
@@ -226,10 +205,11 @@ function generateStatusLine(data) {
   try {
     execSync("git rev-parse --git-dir", { stdio: "pipe", cwd: dirFull });
 
-    // Get repository info for clickable link
-    const repoInfo = getRepoInfo(dirFull);
-    if (repoInfo) {
-      repoLink = createClickableLink(repoInfo.name, repoInfo.url);
+    // Get repository info for clickable link (from input)
+    const repo = data.workspace?.repo;
+    if (repo) {
+      const url = `https://${repo.host}/${repo.owner}/${repo.name}`;
+      repoLink = createClickableLink(repo.name, url);
     }
 
     let branch;
@@ -283,17 +263,14 @@ function generateStatusLine(data) {
     const windowSize = data.context_window.context_window_size ?? 200000;
     context = `${formatNumber(currentUsageTotal)}/${formatNumber(
       windowSize,
-    )} (${percentage}%)`;
+    )} [${percentage}%]`;
   }
 
-  // 出力
-  const parts = [
-    repoLink || dir,
-    gitInfo,
-    model,
-    context,
-    duration,
-    tokens,
-  ].filter(Boolean);
-  return parts.join(" | ");
+  // 出力（3 グループに分けて | で区切る）
+  const groups = [
+    [repoLink || dir, gitInfo],
+    [model, context],
+    [duration, tokens, lines, cost],
+  ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
+  return groups.join(" | ");
 }
