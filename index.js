@@ -178,10 +178,10 @@ function generateStatusLine(data) {
   const dirFull = data.workspace?.current_dir || data.cwd || "Unknown";
   const dir = dirFull.replace(home, "~");
 
-  // 時間（wall/api を / で連結）
+  // 時間（api/wall = subset/total の比率順）
   const duration = `${formatDuration(
-    data.cost?.total_duration_ms ?? 0,
-  )}/${formatDuration(data.cost?.total_api_duration_ms ?? 0)}`;
+    data.cost?.total_api_duration_ms ?? 0,
+  )}/${formatDuration(data.cost?.total_duration_ms ?? 0)}`;
 
   // トークン数（context_window から）
   let tokens = "--";
