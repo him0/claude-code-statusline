@@ -160,6 +160,17 @@ function formatNumber(n) {
   return String(n);
 }
 
+function parseContextWindowFromDisplayName(displayName) {
+  if (!displayName) return null;
+  const match = displayName.match(/\(([\d.]+)\s*([kKmM])?\s*context\)/);
+  if (!match) return null;
+  const num = parseFloat(match[1]);
+  const unit = (match[2] || "").toLowerCase();
+  if (unit === "m") return num * 1_000_000;
+  if (unit === "k") return num * 1_000;
+  return num;
+}
+
 function generateStatusLine(data) {
   // デバッグ用ダンプ
   const home = process.env.HOME;
@@ -251,26 +262,33 @@ function generateStatusLine(data) {
   }
 
   // Context（current_usage の合計を分子として使用）
-  let context = "";
-  if (data.context_window && data.context_window.used_percentage != null) {
-    const percentage = data.context_window.used_percentage;
-    const cu = data.context_window.current_usage || {};
-    const currentUsageTotal =
-      (cu.input_tokens ?? 0) +
-      (cu.output_tokens ?? 0) +
-      (cu.cache_creation_input_tokens ?? 0) +
-      (cu.cache_read_input_tokens ?? 0);
-    const windowSize = data.context_window.context_window_size ?? 200000;
-    context = `${formatNumber(currentUsageTotal)}/${formatNumber(
-      windowSize,
-    )} [${percentage}%]`;
-  }
+  const cu = data.context_window?.current_usage || {};
+  const currentUsageTotal =
+    (cu.input_tokens ?? 0) +
+    (cu.output_tokens ?? 0) +
+    (cu.cache_creation_input_tokens ?? 0) +
+    (cu.cache_read_input_tokens ?? 0);
+  const windowSize =
+    data.context_window?.context_window_size ??
+    parseContextWindowFromDisplayName(data.model?.display_name) ??
+    200000;
+  const percentage =
+    data.context_window?.used_percentage ??
+    (windowSize > 0 ? Math.round((currentUsageTotal / windowSize) * 100) : 0);
+  const context = `${formatNumber(currentUsageTotal)}/${formatNumber(
+    windowSize,
+  )} [${percentage}%]`;
+
+  // 起動直後（API 未使用）は使用量グループを抑制
+  const isFresh =
+    (data.cost?.total_api_duration_ms ?? 0) === 0 &&
+    (data.cost?.total_cost_usd ?? 0) === 0;
 
   // 出力（3 グループに分けて | で区切る）
   const groups = [
     [repoLink || dir, gitInfo],
     [model, context],
-    [duration, tokens, lines, cost],
+    isFresh ? [] : [duration, tokens, lines, cost],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
   return groups.join(" | ");
 }
