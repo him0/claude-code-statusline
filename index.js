@@ -177,13 +177,13 @@ function generateStatusLine(data) {
   if (data.context_window) {
     const inputTokens = data.context_window.total_input_tokens ?? 0;
     const outputTokens = data.context_window.total_output_tokens ?? 0;
-    tokens = `↑${formatNumber(inputTokens)} ↓${formatNumber(outputTokens)}`;
+    tokens = `[↑${formatNumber(inputTokens)} ↓${formatNumber(outputTokens)}]`;
   }
 
   // 行数の増減（cost から）
   const linesAdded = data.cost?.total_lines_added ?? 0;
   const linesRemoved = data.cost?.total_lines_removed ?? 0;
-  const lines = `+${linesAdded} -${linesRemoved}`;
+  const lines = `[+${linesAdded} -${linesRemoved}]`;
 
   // Git
   let gitInfo = "";
