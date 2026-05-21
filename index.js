@@ -143,9 +143,16 @@ process.stdin.on("end", () => {
 });
 
 function formatDuration(ms) {
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  if (h > 0) {
+    return `${h}:${mm}:${ss}`;
+  }
+  return `${mm}:${ss}`;
 }
 
 function formatNumber(n) {
@@ -202,10 +209,13 @@ function generateStatusLine(data) {
     tokens = `[↑${formatNumber(inputTokens)} ↓${formatNumber(outputTokens)}]`;
   }
 
-  // 行数の増減（cost から）
+  // 行数の増減（cost から）— どちらも 0 のときは表示しない
   const linesAdded = data.cost?.total_lines_added ?? 0;
   const linesRemoved = data.cost?.total_lines_removed ?? 0;
-  const lines = `[+${linesAdded} -${linesRemoved}]`;
+  const lines =
+    linesAdded === 0 && linesRemoved === 0
+      ? ""
+      : `+${linesAdded} -${linesRemoved}`;
 
   // 累計コスト（USD）
   const cost = `[$${(data.cost?.total_cost_usd ?? 0).toFixed(2)}]`;
@@ -286,9 +296,9 @@ function generateStatusLine(data) {
 
   // 出力（3 グループに分けて | で区切る）
   const groups = [
-    [repoLink || dir, gitInfo],
+    [repoLink || dir, gitInfo, lines],
     [model, context],
-    isFresh ? [] : [duration, tokens, lines, cost],
+    isFresh ? [] : [duration, tokens, cost],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
   return groups.join(" | ");
 }

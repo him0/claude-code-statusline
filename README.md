@@ -6,17 +6,17 @@ Custom statusLine command for Claude Code.
 
 - Repository name with clickable remote link (falls back to working directory with `~` shortened)
 - Git branch with dirty indicator (`*`), worktree prefix (`(wt)`), and clickable PR link
+- Line diff for the session (`+added -removed`) inline next to the branch; hidden when both are zero
 - Model name with abbreviated effort level (`low` / `med` / `hi` / `xhi` / `max`)
 - Context window usage (used/total with `[%]`)
-- Session duration as `api/wall` (subset/total ratio)
+- Session duration as `api/wall` (subset/total ratio); auto-extends to `H:MM:SS` past one hour
 - Token usage (input ↑ / output ↓)
-- Line diff for the session (`+added -removed`)
 - Session cost in USD
 
 ## Output Sample
 
 ```
-claude-code-statusline (wt) feature-branch* [PR#42] | Opus 4.7 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [+35 -74] [$0.42]
+claude-code-statusline (wt) feature-branch* [PR#42] +35 -74 | Opus 4.7 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
 ```
 
 | Part | Description |
@@ -25,16 +25,16 @@ claude-code-statusline (wt) feature-branch* [PR#42] | Opus 4.7 xhi 29.0k/1M [3%]
 | `(wt)` | Shown when running inside a git worktree |
 | `feature-branch*` | Git branch (`*` = uncommitted changes) |
 | `[PR#42]` | Clickable link to open PR (if exists) |
+| `+35 -74` | Lines added / removed during the session; omitted entirely when both are 0 |
 | `Opus 4.7` | Model name |
 | `xhi` | Abbreviated effort level |
 | `29.0k/1M` | Context window: used / total |
 | `[3%]` | Context window usage percentage |
-| `02:15/03:45` | Duration: API time / wall time (api ≤ wall) |
+| `02:15/03:45` | Duration: API time / wall time (api ≤ wall); becomes `H:MM:SS` once a side exceeds one hour (e.g. `03:58/54:27:31`) |
 | `[↑12.3k ↓5.6k]` | Tokens: input ↑ / output ↓ |
-| `[+35 -74]` | Lines added / removed during the session |
 | `[$0.42]` | Cumulative session cost (USD) |
 
-The line is split into three groups separated by ` | `: location (repo + branch), model state (model + context), and session cost (duration + tokens + lines + cost).
+The line is split into three groups separated by ` | `: location (repo + branch + line diff), model state (model + context), and session metrics (duration + tokens + cost).
 
 ## Install
 
