@@ -16,6 +16,14 @@ const CACHE_FILE = path.join(
 );
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+const EFFORT_SHORT = {
+  low: "low",
+  medium: "med",
+  high: "hi",
+  xhigh: "xhi",
+  max: "max",
+};
+
 function getCacheTtl() {
   const envTtl = process.env.STATUSLINE_PR_CACHE_TTL_MS;
   return envTtl ? parseInt(envTtl, 10) : DEFAULT_CACHE_TTL_MS;
@@ -159,7 +167,7 @@ function generateStatusLine(data) {
     .replace(/^Claude /, "")
     .replace(/\s*\([^)]*\bcontext\b[^)]*\)/, "");
   if (data.effort?.level) {
-    model += ` (${data.effort.level})`;
+    model += ` (${EFFORT_SHORT[data.effort.level] || data.effort.level})`;
   }
   const dirFull = data.workspace?.current_dir || data.cwd || "Unknown";
   const dir = dirFull.replace(home, "~");
