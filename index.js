@@ -197,6 +197,9 @@ function generateStatusLine(data) {
   const linesRemoved = data.cost?.total_lines_removed ?? 0;
   const lines = `[+${linesAdded} -${linesRemoved}]`;
 
+  // 累計コスト（USD）
+  const cost = `[$${(data.cost?.total_cost_usd ?? 0).toFixed(2)}]`;
+
   // Git
   let gitInfo = "";
   let repoLink = "";
@@ -268,7 +271,7 @@ function generateStatusLine(data) {
   const groups = [
     [repoLink || dir, gitInfo],
     [model, context],
-    [duration, apiDuration, tokens, lines],
+    [duration, apiDuration, tokens, lines, cost],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
   return groups.join(" | ");
 }
