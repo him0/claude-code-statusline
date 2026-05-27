@@ -1,6 +1,6 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "node /Users/him0/src/claude-code-statusline/index.js"
+    "command": "node /Users/him0/src/claude-code-statusline/index.js --pr-title"
   }
 }

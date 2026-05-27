@@ -13,6 +13,7 @@ Custom statusLine command for Claude Code.
 - Session duration as `api/wall` (subset/total ratio); auto-extends to `H:MM:SS` past one hour
 - Token usage (input ↑ / output ↓)
 - Session cost in USD
+- Optional `--pr-title` mode: show the PR title on a 2nd line as `<title> #<number>` (whole line clickable)
 
 ## Output Sample
 
@@ -37,6 +38,17 @@ claude-code-statusline (wt) feature-branch* #42 +35 -74 | Opus 4.7 xhi 29.0k/1M 
 
 The line is split into three groups separated by ` | `: location (repo + branch + line diff), model state (model + context), and session metrics (duration + tokens + cost).
 
+### PR Title (optional)
+
+Pass `--pr-title` to show the PR title on a 2nd line and suppress the inline `#N` next to the branch:
+
+```
+claude-code-statusline (wt) feature-branch* +35 -74 | Opus 4.7 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
+[DEMO-5019] Add a date range field to the access-data filter modal #5348
+```
+
+The whole 2nd line is a clickable link that opens the PR. Requires `gh` CLI to be authenticated. When the current branch has no open PR, the 2nd line is omitted.
+
 ## Install
 
 ```bash
@@ -60,6 +72,15 @@ Or with Bun:
 "statusLine": {
   "type": "command",
   "command": "bunx him0/claude-code-statusline"
+}
+```
+
+To enable the PR title on the 2nd line, append `--pr-title`:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "npx him0/claude-code-statusline --pr-title"
 }
 ```
 

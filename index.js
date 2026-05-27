@@ -24,6 +24,9 @@ const EFFORT_SHORT = {
   max: "max",
 };
 
+const CLI_ARGS = process.argv.slice(2);
+const SHOW_PR_TITLE = CLI_ARGS.includes("--pr-title");
+
 function getCacheTtl() {
   const envTtl = process.env.STATUSLINE_PR_CACHE_TTL_MS;
   return envTtl ? parseInt(envTtl, 10) : DEFAULT_CACHE_TTL_MS;
@@ -65,12 +68,13 @@ function getFromCache(repoPath, branch) {
   return entry;
 }
 
-function saveToCache(repoPath, branch, prUrl, prNumber) {
+function saveToCache(repoPath, branch, prUrl, prNumber, prTitle) {
   const cache = loadCache();
   cache[repoPath] = {
     branch,
     prUrl,
     prNumber,
+    prTitle,
     fetchedAt: Date.now(),
   };
   saveCache(cache);
@@ -80,12 +84,14 @@ function getPrInfo(repoPath, branch) {
   // Try cache first
   const cached = getFromCache(repoPath, branch);
   if (cached) {
-    return cached.prUrl ? { url: cached.prUrl, number: cached.prNumber } : null;
+    return cached.prUrl
+      ? { url: cached.prUrl, number: cached.prNumber, title: cached.prTitle }
+      : null;
   }
 
   // Fetch from gh CLI
   try {
-    const result = execSync("gh pr view --json url,number,state", {
+    const result = execSync("gh pr view --json url,number,state,title", {
       cwd: repoPath,
       encoding: "utf8",
       stdio: "pipe",
@@ -96,8 +102,8 @@ function getPrInfo(repoPath, branch) {
     if (prData.state !== "OPEN") {
       return null;
     }
-    saveToCache(repoPath, branch, prData.url, prData.number);
-    return { url: prData.url, number: prData.number };
+    saveToCache(repoPath, branch, prData.url, prData.number, prData.title);
+    return { url: prData.url, number: prData.number, title: prData.title };
   } catch {
     // No PR or gh CLI error - don't cache so we can detect new PRs quickly
     return null;
@@ -124,6 +130,12 @@ if (process.stdin.isTTY) {
   console.log('  "type": "command",');
   console.log('  "command": "npx him0/claude-code-statusline"');
   console.log("}");
+  console.log("");
+  console.log("Options:");
+  console.log(
+    "  --pr-title    Show PR title on a 2nd line as `<title> #<number>`",
+  );
+  console.log("                (suppresses the inline #N next to the branch)");
   console.log("");
   process.exit(0);
 }
@@ -232,6 +244,7 @@ function generateStatusLine(data) {
   // Git
   let gitInfo = "";
   let repoLink = "";
+  let prInfoForTitleLine = null;
   try {
     execSync("git rev-parse --git-dir", { stdio: "pipe", cwd: dirFull });
 
@@ -269,8 +282,13 @@ function generateStatusLine(data) {
     if (rawBranch !== "detached") {
       const prInfo = getPrInfo(dirFull, rawBranch);
       if (prInfo) {
-        const prLink = createClickableLink(`#${prInfo.number}`, prInfo.url);
-        gitInfo = `${branch} ${prLink}`;
+        if (SHOW_PR_TITLE) {
+          // タイトル付きモードでは 2 行目に出すので、ブランチ横の #N は出さない
+          prInfoForTitleLine = prInfo;
+        } else {
+          const prLink = createClickableLink(`#${prInfo.number}`, prInfo.url);
+          gitInfo = `${branch} ${prLink}`;
+        }
       }
     }
 
@@ -310,5 +328,14 @@ function generateStatusLine(data) {
     [model, context],
     isFresh ? [] : [duration, tokens, cost],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
-  return groups.join(" | ");
+  const firstLine = groups.join(" | ");
+
+  if (SHOW_PR_TITLE && prInfoForTitleLine && prInfoForTitleLine.title) {
+    const titleLine = createClickableLink(
+      `${prInfoForTitleLine.title} #${prInfoForTitleLine.number}`,
+      prInfoForTitleLine.url,
+    );
+    return `${firstLine}\n${titleLine}`;
+  }
+  return firstLine;
 }
