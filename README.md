@@ -5,7 +5,8 @@ Custom statusLine command for Claude Code.
 ## Features
 
 - Repository name with clickable remote link (falls back to working directory with `~` shortened)
-- Git branch with dirty indicator (`*`), worktree prefix (`(wt)`), and clickable PR link
+- Git branch with dirty indicator (`*`), worktree prefix (`(wt)`), and clickable PR link (`#42`)
+- Long branch names are middle-truncated at 25 characters (e.g. `remotes/orig…hing-hamster`)
 - Line diff for the session (`+added -removed`) inline next to the branch; hidden when both are zero
 - Model name with abbreviated effort level (`low` / `med` / `hi` / `xhi` / `max`)
 - Context window usage (used/total with `[%]`)
@@ -16,15 +17,15 @@ Custom statusLine command for Claude Code.
 ## Output Sample
 
 ```
-claude-code-statusline (wt) feature-branch* [PR#42] +35 -74 | Opus 4.7 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
+claude-code-statusline (wt) feature-branch* #42 +35 -74 | Opus 4.7 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
 ```
 
 | Part | Description |
 |------|-------------|
 | `claude-code-statusline` | Repository name (clickable link to remote); falls back to `~/src/my-project` when not a git repo |
 | `(wt)` | Shown when running inside a git worktree |
-| `feature-branch*` | Git branch (`*` = uncommitted changes) |
-| `[PR#42]` | Clickable link to open PR (if exists) |
+| `feature-branch*` | Git branch (`*` = uncommitted changes); names longer than 25 chars are middle-truncated (e.g. `remotes/orig…hing-hamster`) |
+| `#42` | Clickable link to open PR (if exists) |
 | `+35 -74` | Lines added / removed during the session; omitted entirely when both are 0 |
 | `Opus 4.7` | Model name |
 | `xhi` | Abbreviated effort level |

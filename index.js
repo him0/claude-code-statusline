@@ -142,6 +142,15 @@ process.stdin.on("end", () => {
   }
 });
 
+function truncateBranch(branch, maxLength = 25) {
+  if (branch.length <= maxLength) return branch;
+  const ellipsis = "…";
+  const available = maxLength - ellipsis.length;
+  const prefixLen = Math.ceil(available / 2);
+  const suffixLen = Math.floor(available / 2);
+  return branch.slice(0, prefixLen) + ellipsis + branch.slice(-suffixLen);
+}
+
 function formatDuration(ms) {
   const totalSeconds = Math.floor(ms / 1000);
   const h = Math.floor(totalSeconds / 3600);
@@ -233,16 +242,18 @@ function generateStatusLine(data) {
       repoLink = createClickableLink(repo.name, url);
     }
 
-    let branch;
+    let rawBranch;
     try {
-      branch = execSync("git rev-parse --abbrev-ref HEAD", {
+      rawBranch = execSync("git rev-parse --abbrev-ref HEAD", {
         encoding: "utf8",
         stdio: "pipe",
         cwd: dirFull,
       }).trim();
     } catch {
-      branch = "detached";
+      rawBranch = "detached";
     }
+
+    let branch = truncateBranch(rawBranch);
 
     // Check for dirty (including untracked)
     const status = execSync(
@@ -255,12 +266,11 @@ function generateStatusLine(data) {
     gitInfo = branch;
 
     // Add PR number if available
-    if (branch !== "detached") {
-      const cleanBranch = branch.replace(/\*$/, "");
-      const prInfo = getPrInfo(dirFull, cleanBranch);
+    if (rawBranch !== "detached") {
+      const prInfo = getPrInfo(dirFull, rawBranch);
       if (prInfo) {
-        const prLink = createClickableLink(`PR#${prInfo.number}`, prInfo.url);
-        gitInfo = `${branch} [${prLink}]`;
+        const prLink = createClickableLink(`#${prInfo.number}`, prInfo.url);
+        gitInfo = `${branch} ${prLink}`;
       }
     }
 
