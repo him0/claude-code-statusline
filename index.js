@@ -3,7 +3,7 @@
  * claude-code-statusline
  * A status line generator for Claude Code CLI
  */
-const { execSync } = require("child_process");
+const { execSync, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -15,6 +15,19 @@ const CACHE_FILE = path.join(
   "statusline-pr-cache.json",
 );
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Claude status page configuration
+const STATUS_CACHE_FILE = path.join(
+  process.env.HOME,
+  ".claude",
+  "cache",
+  "statusline-status-cache.json",
+);
+const STATUS_PAGE_URL = "https://status.claude.com";
+const STATUS_SUMMARY_URL = "https://status.claude.com/api/v2/summary.json";
+const STATUS_COMPONENT_NAME = "Claude Code";
+const DEFAULT_STATUS_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const STATUS_FETCH_TIMEOUT_MS = 5000;
 
 const EFFORT_SHORT = {
   low: "low",
@@ -113,6 +126,117 @@ function getPrInfo(repoPath, branch) {
 function createClickableLink(text, url) {
   // OSC 8 hyperlink escape sequence (using BEL terminator for better compatibility)
   return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
+}
+
+// --- Claude status page integration ---
+
+function getStatusCacheTtl() {
+  const envTtl = process.env.STATUSLINE_STATUS_CACHE_TTL_MS;
+  return envTtl ? parseInt(envTtl, 10) : DEFAULT_STATUS_CACHE_TTL_MS;
+}
+
+function loadStatusCache() {
+  try {
+    if (fs.existsSync(STATUS_CACHE_FILE)) {
+      return JSON.parse(fs.readFileSync(STATUS_CACHE_FILE, "utf8"));
+    }
+  } catch {
+    // Cache corrupted, treat as empty
+  }
+  return {};
+}
+
+function saveStatusCache(cache) {
+  try {
+    const dir = path.dirname(STATUS_CACHE_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(STATUS_CACHE_FILE, JSON.stringify(cache, null, 2));
+  } catch {
+    // Write failure, ignore
+  }
+}
+
+// Convert a statuspage component status (e.g. "partial_outage") into a
+// human-readable label (e.g. "Partial Outage"). Unknown values fall back to a
+// title-cased version of the raw string so future status values still render.
+function formatStatusLabel(status) {
+  return status
+    .split("_")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+// Decide whether a component status should surface a warning. "operational"
+// is healthy; "under_maintenance" is planned and intentionally ignored.
+function isUnhealthyStatus(status) {
+  return status && status !== "operational" && status !== "under_maintenance";
+}
+
+// Fire-and-forget background refresh. Renders never wait on the network: when
+// the cache is stale we stamp lastAttemptAt synchronously (so concurrent
+// renders within the TTL don't spawn duplicate fetchers) and detach a child
+// running `--status-refresh` to update the cache for the next render.
+function maybeRefreshStatus() {
+  if (process.env.STATUSLINE_STATUS_DISABLE === "1") return;
+  const cache = loadStatusCache();
+  const ttl = getStatusCacheTtl();
+  const lastAttempt = cache.lastAttemptAt ?? 0;
+  if (Date.now() - lastAttempt <= ttl) return;
+
+  cache.lastAttemptAt = Date.now();
+  saveStatusCache(cache);
+
+  try {
+    const child = spawn(process.execPath, [__filename, "--status-refresh"], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+  } catch {
+    // Spawn failure, ignore
+  }
+}
+
+// Build the trailing warning group from the cached status, or "" when healthy.
+function statusWarning() {
+  if (process.env.STATUSLINE_STATUS_DISABLE === "1") return "";
+  const cache = loadStatusCache();
+  if (!isUnhealthyStatus(cache.status)) return "";
+  return createClickableLink(formatStatusLabel(cache.status), STATUS_PAGE_URL);
+}
+
+// `--status-refresh` mode: fetch the status page summary, extract the Claude
+// Code component status, and persist it. Runs as a detached child, so it must
+// not depend on stdin. On any failure it leaves the previous good status intact.
+async function runStatusRefresh() {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      STATUS_FETCH_TIMEOUT_MS,
+    );
+    const res = await fetch(STATUS_SUMMARY_URL, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return;
+    const data = await res.json();
+    const component = (data.components || []).find(
+      (c) => c.name === STATUS_COMPONENT_NAME,
+    );
+    if (!component) return;
+    const cache = loadStatusCache();
+    cache.status = component.status;
+    cache.fetchedAt = Date.now();
+    saveStatusCache(cache);
+  } catch {
+    // Network/parse failure: keep the last known status
+  }
+}
+
+if (process.argv.slice(2).includes("--status-refresh")) {
+  runStatusRefresh().finally(() => process.exit(0));
+  return;
 }
 
 // Check if running directly (not from Claude Code)
@@ -322,11 +446,16 @@ function generateStatusLine(data) {
     (data.cost?.total_api_duration_ms ?? 0) === 0 &&
     (data.cost?.total_cost_usd ?? 0) === 0;
 
-  // 出力（3 グループに分けて | で区切る）
+  // Claude のステータスを裏で更新し、障害時のみ末尾に警告を出す
+  maybeRefreshStatus();
+  const statusGroup = statusWarning();
+
+  // 出力（グループに分けて | で区切る）
   const groups = [
     [repoLink || dir, gitInfo, lines],
     [model, context],
     isFresh ? [] : [duration, tokens, cost],
+    [statusGroup],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
   const firstLine = groups.join(" | ");
 
