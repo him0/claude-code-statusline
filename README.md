@@ -14,6 +14,7 @@ Custom statusLine command for Claude Code.
 - Token usage (input ↑ / output ↓)
 - Session cost in USD
 - Claude Code service health: when the [status page](https://status.claude.com) reports the **Claude Code** component as degraded, a clickable status label appears at the end of the line (hidden while operational)
+- Width-aware wrapping: when the terminal is too narrow, the line wraps at group boundaries (the ` | ` separators) so each group stays intact
 - Optional `--pr-title` mode: show the PR title on a 2nd line as `<title> #<number>` (whole line clickable)
 
 ## Output Sample
@@ -38,6 +39,18 @@ claude-code-statusline (wt) feature-branch* #42 +35 -74 | Opus 4.7 xhi 29.0k/1M 
 | `[$0.42]` | Cumulative session cost (USD) |
 
 The line is split into three groups separated by ` | `: location (repo + branch + line diff), model state (model + context), and session metrics (duration + tokens + cost). A fourth group (the status warning below) is appended only when Claude Code is unhealthy.
+
+### Width-aware wrapping
+
+When the rendered line is wider than the terminal, it wraps at group boundaries (the ` | ` separators) so each group stays on a single line — a meaningful break point rather than an arbitrary mid-word cut:
+
+```
+claude-code-statusline feature-branch* +35 -74
+Opus 4.7 xhi 29.0k/1M [3%]
+02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
+```
+
+The terminal width is read from the `COLUMNS` environment variable, which Claude Code sets to the current terminal dimensions before running the status line (requires Claude Code v2.1.153 or later). Hyperlink (OSC 8) and ANSI escape sequences are excluded from the width calculation, so a clickable repo or PR link is measured by its visible text, not its URL. When `COLUMNS` is unavailable, the line is never wrapped and renders on a single line as before. A group that is wider than the terminal on its own is left intact (it cannot be split further).
 
 ### Claude Code status warning
 

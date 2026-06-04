@@ -312,6 +312,57 @@ function formatNumber(n) {
   return String(n);
 }
 
+const GROUP_SEPARATOR = " | ";
+
+// 端末幅を取得する。Claude Code はスクリプトの出力をキャプチャするため
+// `tput cols` や process.stdout.columns では幅が取れない。代わりに Claude
+// Code が端末幅としてセットする COLUMNS 環境変数を読む（v2.1.153+）。
+// 取れない場合は null を返し、折り返さず従来通り 1 行で出す。
+function getTerminalWidth() {
+  const cols = parseInt(process.env.COLUMNS, 10);
+  return Number.isFinite(cols) && cols > 0 ? cols : null;
+}
+
+// 表示上の幅を計算する。OSC 8 ハイパーリンクや ANSI エスケープシーケンスは
+// 画面上の幅を持たないため取り除いてから、コードポイント数で数える。
+function visibleWidth(str) {
+  const stripped = str
+    // OSC 8 ハイパーリンク: ESC ] 8 ; params ; URI (BEL または ESC \)
+    .replace(/\x1b\]8;[^;]*;.*?(?:\x07|\x1b\\)/g, "")
+    // CSI（色などの一般的なエスケープ）
+    .replace(/\x1b\[[0-9;]*m/g, "");
+  return [...stripped].length;
+}
+
+// グループを ` | ` で連結する。端末幅に収まらない場合は、意味のある切れ目
+// （グループ境界）で改行する。単独で幅を超えるグループはこれ以上分割でき
+// ないので、そのまま 1 行に置く。width が無ければ全グループを 1 行に出す。
+function layoutGroups(groups, width) {
+  if (!width || groups.length === 0) {
+    return groups.join(GROUP_SEPARATOR);
+  }
+  const sepWidth = visibleWidth(GROUP_SEPARATOR);
+  const lines = [];
+  let line = "";
+  let lineWidth = 0;
+  for (const group of groups) {
+    const gWidth = visibleWidth(group);
+    if (line === "") {
+      line = group;
+      lineWidth = gWidth;
+    } else if (lineWidth + sepWidth + gWidth <= width) {
+      line += GROUP_SEPARATOR + group;
+      lineWidth += sepWidth + gWidth;
+    } else {
+      lines.push(line);
+      line = group;
+      lineWidth = gWidth;
+    }
+  }
+  if (line !== "") lines.push(line);
+  return lines.join("\n");
+}
+
 function parseContextWindowFromDisplayName(displayName) {
   if (!displayName) return null;
   const match = displayName.match(/\(([\d.]+)\s*([kKmM])?\s*context\)/);
@@ -457,7 +508,9 @@ function generateStatusLine(data) {
     isFresh ? [] : [duration, tokens, cost],
     [statusGroup],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
-  const firstLine = groups.join(" | ");
+
+  // 画面幅が足りなければ、意味のある切れ目（グループ境界）で折り返す
+  const firstLine = layoutGroups(groups, getTerminalWidth());
 
   if (SHOW_PR_TITLE && prInfoForTitleLine && prInfoForTitleLine.title) {
     const titleLine = createClickableLink(
