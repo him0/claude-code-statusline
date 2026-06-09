@@ -20,7 +20,7 @@ Custom statusLine command for Claude Code.
 ## Output Sample
 
 ```
-claude-code-statusline (wt) feature-branch* #42 +35 -74 | Opus 4.7 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
+claude-code-statusline (wt) feature-branch* #42 +35 -74 | Fable 5 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
 ```
 
 | Part | Description |
@@ -30,7 +30,7 @@ claude-code-statusline (wt) feature-branch* #42 +35 -74 | Opus 4.7 xhi 29.0k/1M 
 | `feature-branch*` | Git branch (`*` = uncommitted changes); names longer than 25 chars are middle-truncated (e.g. `remotes/orig…hing-hamster`) |
 | `#42` | Clickable link to open PR (if exists) |
 | `+35 -74` | Lines added / removed during the session; omitted entirely when both are 0 |
-| `Opus 4.7` | Model name |
+| `Fable 5` | Model name |
 | `xhi` | Abbreviated effort level |
 | `29.0k/1M` | Context window: used / total |
 | `[3%]` | Context window usage percentage |
@@ -46,7 +46,7 @@ When the rendered line is wider than the terminal, it wraps at group boundaries 
 
 ```
 claude-code-statusline feature-branch* +35 -74
-Opus 4.7 xhi 29.0k/1M [3%]
+Fable 5 xhi 29.0k/1M [3%]
 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
 ```
 
@@ -57,7 +57,7 @@ The terminal width is read from the `COLUMNS` environment variable, which Claude
 When the [Claude status page](https://status.claude.com) reports the **Claude Code** component as anything other than operational, a clickable label is appended as a final group:
 
 ```
-claude-code-statusline feature-branch* | Opus 4.7 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42] | Partial Outage
+claude-code-statusline feature-branch* | Fable 5 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42] | Partial Outage
 ```
 
 | Component status | Shown label |
@@ -80,7 +80,7 @@ Tune or disable it with environment variables:
 Pass `--pr-title` to show the PR title on a 2nd line and suppress the inline `#N` next to the branch:
 
 ```
-claude-code-statusline (wt) feature-branch* +35 -74 | Opus 4.7 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
+claude-code-statusline (wt) feature-branch* +35 -74 | Fable 5 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
 [DEMO-5019] Add a date range field to the access-data filter modal #5348
 ```
 
