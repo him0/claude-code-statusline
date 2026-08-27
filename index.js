@@ -15,6 +15,16 @@ const CACHE_FILE = path.join(
   "statusline-pr-cache.json",
 );
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// PR が無い（あるいは OPEN でない）という結果も短めの TTL でキャッシュする。
+// これが無いと、PR 未作成のブランチや main で作業している間は再描画のたびに
+// `gh pr view` が走り、毎回 GraphQL を 1 発叩くことになる。新しく作られた PR
+// の検出はこの TTL 分だけ遅れる。
+const DEFAULT_NEGATIVE_CACHE_TTL_MS = 60 * 1000; // 1 minute
+// これより長く触られていないエントリは保存時に捨てる。エントリを落としても
+// 失われるのは次回そのディレクトリを開いたときの `gh` 1 回分だけで、すぐに
+// 取り直されて再びキャッシュされる。掃除の主役は「パスが消えた worktree」
+// の方（実測で 129 件中 110 件）なので、ここは余裕を持たせてある。
+const CACHE_GC_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Claude status page configuration
 const STATUS_CACHE_FILE = path.join(
@@ -45,6 +55,11 @@ function getCacheTtl() {
   return envTtl ? parseInt(envTtl, 10) : DEFAULT_CACHE_TTL_MS;
 }
 
+function getNegativeCacheTtl() {
+  const envTtl = process.env.STATUSLINE_PR_NEGATIVE_CACHE_TTL_MS;
+  return envTtl ? parseInt(envTtl, 10) : DEFAULT_NEGATIVE_CACHE_TTL_MS;
+}
+
 function loadCache() {
   try {
     if (fs.existsSync(CACHE_FILE)) {
@@ -56,13 +71,27 @@ function loadCache() {
   return {};
 }
 
+// 用済みのエントリを落とす。判定は 2 つ: (1) しばらく触られていない
+// （= そのディレクトリで作業していない）、(2) ディレクトリ自体が消えている
+// （= worktree を畳んだ）。(2) の stat は (1) を通過した少数にだけ掛ける。
+function pruneCache(cache) {
+  const now = Date.now();
+  const kept = {};
+  for (const [repoPath, entry] of Object.entries(cache)) {
+    if (!entry || now - (entry.fetchedAt ?? 0) > CACHE_GC_MAX_AGE_MS) continue;
+    if (!fs.existsSync(repoPath)) continue;
+    kept[repoPath] = entry;
+  }
+  return kept;
+}
+
 function saveCache(cache) {
   try {
     const dir = path.dirname(CACHE_FILE);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(pruneCache(cache), null, 2));
   } catch {
     // Write failure, ignore
   }
@@ -74,7 +103,8 @@ function getFromCache(repoPath, branch) {
   if (!entry || entry.branch !== branch) {
     return null;
   }
-  const ttl = getCacheTtl();
+  // PR あり（positive）は 5 分、PR なし（negative）は 1 分で失効させる。
+  const ttl = entry.prUrl ? getCacheTtl() : getNegativeCacheTtl();
   if (Date.now() - entry.fetchedAt > ttl) {
     return null;
   }
@@ -113,12 +143,15 @@ function getPrInfo(repoPath, branch) {
     const prData = JSON.parse(result);
     // Only show PR link for open PRs
     if (prData.state !== "OPEN") {
+      saveToCache(repoPath, branch, null, null, null);
       return null;
     }
     saveToCache(repoPath, branch, prData.url, prData.number, prData.title);
     return { url: prData.url, number: prData.number, title: prData.title };
   } catch {
-    // No PR or gh CLI error - don't cache so we can detect new PRs quickly
+    // No PR, or gh CLI/network error. Cache the miss with a short TTL so a
+    // branch without a PR doesn't re-run `gh` on every single render.
+    saveToCache(repoPath, branch, null, null, null);
     return null;
   }
 }

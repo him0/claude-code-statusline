@@ -86,6 +86,24 @@ claude-code-statusline (wt) feature-branch* +35 -74 | Fable 5 xhi 29.0k/1M [3%] 
 
 The whole 2nd line is a clickable link that opens the PR. Requires `gh` CLI to be authenticated. When the current branch has no open PR, the 2nd line is omitted.
 
+### PR lookup cache
+
+The PR number and title come from `gh pr view`, which costs one GitHub GraphQL request (~0.5s) per call. The status line re-renders on every conversation update, so the result is cached in `~/.claude/cache/statusline-pr-cache.json`, keyed by directory and invalidated when the branch changes:
+
+| Result | Cached for | Why |
+|--------|-----------|-----|
+| An open PR was found | 5 minutes | The title rarely changes mid-session |
+| No PR / not open / `gh` failed | 1 minute | A newly created PR should still appear quickly |
+
+Caching the *misses* matters most: without it, every render on a branch with no PR (`main` included) fires its own API request — hundreds per hour of active work, each blocking the render for half a second.
+
+Stale entries are swept on every cache write. An entry is dropped when its directory no longer exists (a git worktree that has been removed), or when it has not been refreshed for 30 days. Dropping an entry is cheap: the next render in that directory simply looks the PR up again and re-caches it, so the sweep only ever costs one extra `gh` call on a directory you come back to.
+
+Tune the TTLs with environment variables:
+
+- `STATUSLINE_PR_CACHE_TTL_MS` — how long a found PR is cached, in ms (default `300000`)
+- `STATUSLINE_PR_NEGATIVE_CACHE_TTL_MS` — how long a miss is cached, in ms (default `60000`)
+
 ## Install
 
 ```bash
