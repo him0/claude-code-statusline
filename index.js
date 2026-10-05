@@ -285,7 +285,8 @@ if (process.stdin.isTTY) {
   console.log("");
   console.log('"statusLine": {');
   console.log('  "type": "command",');
-  console.log('  "command": "npx him0/claude-code-statusline"');
+  console.log('  "command": "npx him0/claude-code-statusline",');
+  console.log('  "refreshInterval": 60');
   console.log("}");
   console.log("");
   console.log("Options:");
@@ -394,6 +395,50 @@ function layoutGroups(groups, width) {
   }
   if (line !== "") lines.push(line);
   return lines.join("\n");
+}
+
+// prompt cache の残り時間を `cache 42m` の形で返す。期限切れ（あるいは
+// warm でない）なら `cache cold`、キャッシュ情報が無ければ "" を返す。
+// expires_at は Unix epoch 秒（v2.1.251+）。分は切り上げて、残り 1 分未満でも
+// 0m にはしない。
+function formatPromptCache(pc) {
+  if (!pc || pc.expires_at == null) return "";
+  const remainSec = pc.expires_at - Math.floor(Date.now() / 1000);
+  if (pc.warm === false || remainSec <= 0) return "cache cold";
+  return `cache ${Math.ceil(remainSec / 60)}m`;
+}
+
+// statusLine.refreshInterval が設定されているかを settings ファイルから判定する。
+// stdin の JSON には refreshInterval が含まれないため、user / project / local の
+// settings を直接読む。厳密な優先順位は見ず、どれかに 1 以上の数値があれば
+// 設定済みとみなす。managed settings や --settings は見えないので、そちらで
+// 設定している場合は誤って未設定と判定される（警告が余計に出るだけ）。
+function hasRefreshInterval(projectDir) {
+  const files = [path.join(process.env.HOME, ".claude", "settings.json")];
+  if (projectDir) {
+    files.push(
+      path.join(projectDir, ".claude", "settings.json"),
+      path.join(projectDir, ".claude", "settings.local.json"),
+    );
+  }
+  return files.some((file) => {
+    try {
+      const interval = JSON.parse(fs.readFileSync(file, "utf8")).statusLine
+        ?.refreshInterval;
+      return typeof interval === "number" && interval >= 1;
+    } catch {
+      return false;
+    }
+  });
+}
+
+// cache の残り時間を出しているのに refreshInterval が無いと、アイドル中は
+// カウントダウンが止まって見える。その場合だけ設定を促す 1 行を返す。
+function refreshIntervalHint(data) {
+  if (process.env.STATUSLINE_REFRESH_HINT_DISABLE === "1") return "";
+  if (data.prompt_cache?.expires_at == null) return "";
+  if (hasRefreshInterval(data.workspace?.project_dir)) return "";
+  return '⚠ set "refreshInterval": 60 in statusLine settings to keep the cache countdown live';
 }
 
 function parseContextWindowFromDisplayName(displayName) {
@@ -537,20 +582,26 @@ function generateStatusLine(data) {
   // 出力（グループに分けて | で区切る）
   const groups = [
     [repoLink || dir, gitInfo, lines],
-    [model, context],
+    [model, context, formatPromptCache(data.prompt_cache)],
     isFresh ? [] : [duration, tokens, cost],
     [statusGroup],
   ].map((g) => g.filter(Boolean).join(" ")).filter(Boolean);
 
   // 画面幅が足りなければ、意味のある切れ目（グループ境界）で折り返す
-  const firstLine = layoutGroups(groups, getTerminalWidth());
+  const outputLines = [layoutGroups(groups, getTerminalWidth())];
 
   if (SHOW_PR_TITLE && prInfoForTitleLine && prInfoForTitleLine.title) {
-    const titleLine = createClickableLink(
-      `${prInfoForTitleLine.title} #${prInfoForTitleLine.number}`,
-      prInfoForTitleLine.url,
+    outputLines.push(
+      createClickableLink(
+        `${prInfoForTitleLine.title} #${prInfoForTitleLine.number}`,
+        prInfoForTitleLine.url,
+      ),
     );
-    return `${firstLine}\n${titleLine}`;
   }
-  return firstLine;
+
+  // refreshInterval 未設定の警告は最後の行に出す
+  const hint = refreshIntervalHint(data);
+  if (hint) outputLines.push(hint);
+
+  return outputLines.join("\n");
 }

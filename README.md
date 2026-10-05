@@ -10,6 +10,7 @@ Custom statusLine command for Claude Code.
 - Line diff for the session (`+added -removed`) inline next to the branch; hidden when both are zero
 - Model name with abbreviated effort level (`low` / `med` / `hi` / `xhi` / `max`)
 - Context window usage (used/total with `[%]`)
+- Prompt cache time remaining (`cache 42m`, or `cache cold` once the TTL has passed)
 - Session duration as `api/wall` (subset/total ratio); auto-extends to `H:MM:SS` past one hour
 - Token usage (input ↑ / output ↓)
 - Session cost in USD
@@ -20,7 +21,7 @@ Custom statusLine command for Claude Code.
 ## Output Sample
 
 ```
-claude-code-statusline (wt) feature-branch* #42 +35 -74 | Fable 5 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
+claude-code-statusline (wt) feature-branch* #42 +35 -74 | Fable 5 xhi 29.0k/1M [3%] cache 42m | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
 ```
 
 | Part | Description |
@@ -34,11 +35,12 @@ claude-code-statusline (wt) feature-branch* #42 +35 -74 | Fable 5 xhi 29.0k/1M [
 | `xhi` | Abbreviated effort level |
 | `29.0k/1M` | Context window: used / total |
 | `[3%]` | Context window usage percentage |
+| `cache 42m` | Minutes until the prompt cache expires (rounded up); `cache cold` once expired; hidden until the first API response reports cache usage (requires Claude Code v2.1.251+) |
 | `02:15/03:45` | Duration: API time / wall time (api ≤ wall); becomes `H:MM:SS` once a side exceeds one hour (e.g. `03:58/54:27:31`) |
 | `[↑12.3k ↓5.6k]` | Tokens: input ↑ / output ↓ |
 | `[$0.42]` | Cumulative session cost (USD) |
 
-The line is split into three groups separated by ` | `: location (repo + branch + line diff), model state (model + context), and session metrics (duration + tokens + cost). A fourth group (the status warning below) is appended only when Claude Code is unhealthy.
+The line is split into three groups separated by ` | `: location (repo + branch + line diff), model state (model + context + prompt cache), and session metrics (duration + tokens + cost). A fourth group (the status warning below) is appended only when Claude Code is unhealthy.
 
 ### Width-aware wrapping
 
@@ -57,7 +59,7 @@ The terminal width is read from the `COLUMNS` environment variable, which Claude
 When the [Claude status page](https://status.claude.com) reports the **Claude Code** component as anything other than operational, a clickable label is appended as a final group:
 
 ```
-claude-code-statusline feature-branch* | Fable 5 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42] | Partial Outage
+claude-code-statusline feature-branch* | Fable 5 xhi 29.0k/1M [3%] cache 42m | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42] | Partial Outage
 ```
 
 | Component status | Shown label |
@@ -80,7 +82,7 @@ Tune or disable it with environment variables:
 Pass `--pr-title` to show the PR title on a 2nd line and suppress the inline `#N` next to the branch:
 
 ```
-claude-code-statusline (wt) feature-branch* +35 -74 | Fable 5 xhi 29.0k/1M [3%] | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
+claude-code-statusline (wt) feature-branch* +35 -74 | Fable 5 xhi 29.0k/1M [3%] cache 42m | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
 [DEMO-5019] Add a date range field to the access-data filter modal #5348
 ```
 
@@ -117,16 +119,29 @@ Add to `~/.claude/settings.json`:
 ```json
 "statusLine": {
   "type": "command",
-  "command": "npx him0/claude-code-statusline"
+  "command": "npx him0/claude-code-statusline",
+  "refreshInterval": 60
 }
 ```
+
+`refreshInterval` (seconds) re-runs the command periodically in addition to Claude Code's event-driven updates, so the `cache 42m` countdown keeps ticking while the session is idle. It is optional: without it the line still switches to `cache cold` when the cache expires (Claude Code re-renders at `prompt_cache.expires_at`), but the minutes in between only update on new messages.
+
+When `prompt_cache` is reported but no `statusLine.refreshInterval` of `1` or more is found, a hint is printed on its own last line:
+
+```
+claude-code-statusline feature-branch* | Fable 5 xhi 29.0k/1M [3%] cache 42m | 02:15/03:45 [↑12.3k ↓5.6k] [$0.42]
+⚠ set "refreshInterval": 60 in statusLine settings to keep the cache countdown live
+```
+
+Any value of `1` or more counts (it does not have to be `60`). The check reads `~/.claude/settings.json`, `<project>/.claude/settings.json`, and `<project>/.claude/settings.local.json`; managed settings and `--settings` are not visible to it, so set `STATUSLINE_REFRESH_HINT_DISABLE=1` to hide the hint if you configure the interval there.
 
 Or with Bun:
 
 ```json
 "statusLine": {
   "type": "command",
-  "command": "bunx him0/claude-code-statusline"
+  "command": "bunx him0/claude-code-statusline",
+  "refreshInterval": 60
 }
 ```
 

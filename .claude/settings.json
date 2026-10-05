@@ -1,6 +1,7 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "node index.js --pr-title"
+    "command": "node index.js --pr-title",
+    "refreshInterval": 60
   }
 }
