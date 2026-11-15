@@ -6,10 +6,14 @@
 const { execSync, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
+
+// Windows には HOME が無い（USERPROFILE を使う）ので os.homedir() で取る。
+const HOME_DIR = os.homedir();
 
 // Cache configuration
 const CACHE_FILE = path.join(
-  process.env.HOME,
+  HOME_DIR,
   ".claude",
   "cache",
   "statusline-pr-cache.json",
@@ -28,7 +32,7 @@ const CACHE_GC_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Claude status page configuration
 const STATUS_CACHE_FILE = path.join(
-  process.env.HOME,
+  HOME_DIR,
   ".claude",
   "cache",
   "statusline-status-cache.json",
@@ -138,6 +142,7 @@ function getPrInfo(repoPath, branch) {
       cwd: repoPath,
       encoding: "utf8",
       stdio: "pipe",
+      windowsHide: true,
       timeout: 5000,
     });
     const prData = JSON.parse(result);
@@ -225,6 +230,8 @@ function maybeRefreshStatus() {
     const child = spawn(process.execPath, [__filename, "--status-refresh"], {
       detached: true,
       stdio: "ignore",
+      // Windows では detached な子が別コンソールを持つので、窓を出さない
+      windowsHide: true,
     });
     child.unref();
   } catch {
@@ -414,7 +421,7 @@ function formatPromptCache(pc) {
 // 設定済みとみなす。managed settings や --settings は見えないので、そちらで
 // 設定している場合は誤って未設定と判定される（警告が余計に出るだけ）。
 function hasRefreshInterval(projectDir) {
-  const files = [path.join(process.env.HOME, ".claude", "settings.json")];
+  const files = [path.join(HOME_DIR, ".claude", "settings.json")];
   if (projectDir) {
     files.push(
       path.join(projectDir, ".claude", "settings.json"),
@@ -452,11 +459,25 @@ function parseContextWindowFromDisplayName(displayName) {
   return num;
 }
 
+// ホームディレクトリ配下のパスを ~ に縮める。Windows ではドライブレターの
+// 大小や区切り文字（\ と /）が cwd と homedir で食い違うことがあるので、
+// 正規化して前方一致で比較する（正規化しても長さは変わらない）。
+function shortenHome(p) {
+  if (!HOME_DIR) return p;
+  if (process.platform !== "win32") return p.replace(HOME_DIR, "~");
+  const norm = (s) => s.replace(/\//g, "\\").toLowerCase();
+  const np = norm(p);
+  const nh = norm(HOME_DIR);
+  if (np === nh || np.startsWith(nh + "\\")) {
+    return "~" + p.slice(HOME_DIR.length);
+  }
+  return p;
+}
+
 function generateStatusLine(data) {
   // デバッグ用ダンプ
-  const home = process.env.HOME;
   fs.writeFileSync(
-    path.join(home, ".claude", "statusline-input.json"),
+    path.join(HOME_DIR, ".claude", "statusline-input.json"),
     JSON.stringify(data, null, 2),
   );
 
@@ -468,7 +489,7 @@ function generateStatusLine(data) {
     model += ` ${EFFORT_SHORT[data.effort.level] || data.effort.level}`;
   }
   const dirFull = data.workspace?.current_dir || data.cwd || "Unknown";
-  const dir = dirFull.replace(home, "~");
+  const dir = shortenHome(dirFull);
 
   // 時間（api/wall = subset/total の比率順）
   const duration = `${formatDuration(
@@ -499,7 +520,11 @@ function generateStatusLine(data) {
   let repoLink = "";
   let prInfoForTitleLine = null;
   try {
-    execSync("git rev-parse --git-dir", { stdio: "pipe", cwd: dirFull });
+    execSync("git rev-parse --git-dir", {
+      stdio: "pipe",
+      cwd: dirFull,
+      windowsHide: true,
+    });
 
     // Get repository info for clickable link (from input)
     const repo = data.workspace?.repo;
@@ -514,6 +539,7 @@ function generateStatusLine(data) {
         encoding: "utf8",
         stdio: "pipe",
         cwd: dirFull,
+        windowsHide: true,
       }).trim();
     } catch {
       rawBranch = "detached";
@@ -524,7 +550,7 @@ function generateStatusLine(data) {
     // Check for dirty (including untracked)
     const status = execSync(
       "git --no-optional-locks status --porcelain -unormal --ignore-submodules=dirty",
-      { encoding: "utf8", stdio: "pipe", cwd: dirFull },
+      { encoding: "utf8", stdio: "pipe", cwd: dirFull, windowsHide: true },
     );
     if (status.trim()) {
       branch += "*";
